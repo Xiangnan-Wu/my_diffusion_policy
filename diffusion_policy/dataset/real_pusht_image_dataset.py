@@ -1,3 +1,8 @@
+import os
+import sys
+sys.path.append('/home/wxn/Projects/diffusion_policy')
+
+
 from typing import Dict, List
 import torch
 import numpy as np
@@ -45,8 +50,8 @@ class RealPushTImageDataset(BaseImageDataset):
         replay_buffer = None
         if use_cache:
             # fingerprint shape_meta
-            shape_meta_json = json.dumps(OmegaConf.to_container(shape_meta), sort_keys=True)
-            shape_meta_hash = hashlib.md5(shape_meta_json.encode('utf-8')).hexdigest()
+            shape_meta_json = json.dumps(OmegaConf.to_container(shape_meta), sort_keys=True) # 把shape_meta:OmegaConf 对象转化为字典str
+            shape_meta_hash = hashlib.md5(shape_meta_json.encode('utf-8')).hexdigest() # 生成哈希值
             cache_zarr_path = os.path.join(dataset_path, shape_meta_hash + '.zarr.zip')
             cache_lock_path = cache_zarr_path + '.lock'
             print('Acquiring lock on cache.')
@@ -55,13 +60,13 @@ class RealPushTImageDataset(BaseImageDataset):
                     # cache does not exists
                     try:
                         print('Cache does not exist. Creating!')
-                        replay_buffer = _get_replay_buffer(
+                        replay_buffer = _get_replay_buffer( # out_replay_buffer 包含了 'meta':'episode_ends' 'data': 'action', 'camera_1', 'camera_3', 'robot_eef_pose'
                             dataset_path=dataset_path,
                             shape_meta=shape_meta,
                             store=zarr.MemoryStore()
                         )
                         print('Saving cache to disk.')
-                        with zarr.ZipStore(cache_zarr_path) as zip_store:
+                        with zarr.ZipStore(cache_zarr_path) as zip_store: # 将数据保存在disk中
                             replay_buffer.save_to_store(
                                 store=zip_store
                             )
@@ -225,21 +230,21 @@ def zarr_resize_index_last_dim(zarr_arr, idxs):
     return zarr_arr
 
 def _get_replay_buffer(dataset_path, shape_meta, store):
-    # parse shape meta
+    # 解析数据构建replay buffer
     rgb_keys = list()
     lowdim_keys = list()
     out_resolutions = dict()
     lowdim_shapes = dict()
-    obs_shape_meta = shape_meta['obs']
+    obs_shape_meta = shape_meta['obs'] # camera_1 + shape   camera_3 + shape    robot_eef_pose + shape
     for key, attr in obs_shape_meta.items():
-        type = attr.get('type', 'low_dim')
-        shape = tuple(attr.get('shape'))
+        type = attr.get('type', 'low_dim') # rgb or low_dim
+        shape = tuple(attr.get('shape')) # 3 * 240 * 320
         if type == 'rgb':
-            rgb_keys.append(key)
+            rgb_keys.append(key) # [camera_1, camera_3]
             c,h,w = shape
             out_resolutions[key] = (w,h)
         elif type == 'low_dim':
-            lowdim_keys.append(key)
+            lowdim_keys.append(key) # [robot_eef_pose]
             lowdim_shapes[key] = tuple(shape)
             if 'pose' in key:
                 assert tuple(shape) in [(2,),(6,)]
@@ -253,7 +258,7 @@ def _get_replay_buffer(dataset_path, shape_meta, store):
         replay_buffer = real_data_to_replay_buffer(
             dataset_path=dataset_path,
             out_store=store,
-            out_resolutions=out_resolutions,
+            out_resolutions=out_resolutions, #dict {'camera_1': (width, height), 'camera_3': (width, height)}
             lowdim_keys=lowdim_keys + ['action'],
             image_keys=rgb_keys
         )
@@ -278,10 +283,10 @@ def test():
     from omegaconf import OmegaConf
     OmegaConf.register_new_resolver("eval", eval, replace=True)
 
-    with hydra.initialize('../diffusion_policy/config'):
-        cfg = hydra.compose('train_robomimic_real_image_workspace')
-        OmegaConf.resolve(cfg)
-        dataset = hydra.utils.instantiate(cfg.task.dataset)
+    with hydra.initialize('../config'):
+        cfg = hydra.compose('train_robomimic_real_image_workspace') # 合成配置 train_robomimic_real_image_workspace 中包含 defaults 中的 task/real_pusht_image.yaml 将其转化为一个整体配置文件
+        OmegaConf.resolve(cfg) # 解析配置中的差值表达式 即 ${eval:'${n_obs_steps}-1+${n_latency_steps}'}等
+        dataset = hydra.utils.instantiate(cfg.task.dataset) # 实例化 dataset._target_ 指向的类 这里是 diffusion_policy.dataset.real_pusht_image_dataset.RealPushTImageDataset
 
     from matplotlib import pyplot as plt
     normalizer = dataset.get_normalizer()
@@ -289,3 +294,6 @@ def test():
     diff = np.diff(nactions, axis=0)
     dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
     _ = plt.hist(dists, bins=100); plt.title('real action velocity')
+
+if __name__ == "__main__":
+    test()

@@ -53,7 +53,7 @@ def get_val_mask(n_episodes, val_ratio, seed=0):
         return val_mask
 
     # have at least 1 episode for validation, and at least 1 episode for train
-    n_val = min(max(1, round(n_episodes * val_ratio)), n_episodes-1)
+    n_val = min(max(1, round(n_episodes * val_ratio)), n_episodes-1) # 计算验证集episode数量
     rng = np.random.default_rng(seed=seed)
     val_idxs = rng.choice(n_episodes, size=n_val, replace=False)
     val_mask[val_idxs] = True
@@ -94,7 +94,7 @@ class SequenceSampler:
         if keys is None:
             keys = list(replay_buffer.keys())
         
-        episode_ends = replay_buffer.episode_ends[:]
+        episode_ends = replay_buffer.episode_ends[:] # 每一个episode结束的位置 161, 279, 420, ..., 25650
         if episode_mask is None:
             episode_mask = np.ones(episode_ends.shape, dtype=bool)
 
@@ -108,7 +108,7 @@ class SequenceSampler:
         else:
             indices = np.zeros((0,4), dtype=np.int64)
 
-        # (buffer_start_idx, buffer_end_idx, sample_start_idx, sample_end_idx)
+        #* (buffer_start_idx, buffer_end_idx, sample_start_idx, sample_end_idx) 间隔为sequence length
         self.indices = indices 
         self.keys = list(keys) # prevent OmegaConf list performance problem
         self.sequence_length = sequence_length

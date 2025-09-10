@@ -92,11 +92,11 @@ class ReplayBuffer:
         """
         Dummy constructor. Use copy_from* and create_from* class methods instead.
         """
-        assert('data' in root)
-        assert('meta' in root)
-        assert('episode_ends' in root['meta'])
+        assert('data' in root) # root.data 包含 action(27672, 6), robot_eef_pose(27672, 6), robot_eef_pose_vel(27672, 6), robot_joint(27672, 6), robot_joint_vel(27672, 6), state(27672, ), timestamp(27672, )
+        assert('meta' in root) # root.meta 包含 episode_ends(136,) 136维度向量，每个元素代表一个任务结束的步骤数量 161, 279, 420, ..., 25650
+        assert('episode_ends' in root['meta']) # 136维度向量，每个元素代表一个任务结束的步骤数量 161, 279, 420, ..., 25650
         for key, value in root['data'].items():
-            assert(value.shape[0] == root['meta']['episode_ends'][-1])
+            assert(value.shape[0] == root['meta']['episode_ends'][-1]) # 27672 是总步骤数量 root['meta']['episode_ends'][-1] 是最后一帧的index
         self.root = root
     
     # ============= create constructors ===============
@@ -137,7 +137,7 @@ class ReplayBuffer:
     def create_from_path(cls, zarr_path, mode='r', **kwargs):
         """
         Open a on-disk zarr directly (for dataset larger than memory).
-        Slower.
+        Slower. 从硬盘中的replay_buffer.zarr构建replay buffer
         """
         group = zarr.open(os.path.expanduser(zarr_path), mode)
         return cls.create_from_group(group, **kwargs)
@@ -157,7 +157,7 @@ class ReplayBuffer:
         if store is None:
             # numpy backend
             meta = dict()
-            for key, value in src_root['meta'].items():
+            for key, value in src_root['meta'].items(): # episode_ends 是一个206个元素的向量，每个元素代表一个任务结束的步骤数量 161, 279, 420, ..., 25650
                 if isinstance(value, zarr.Group):
                     continue
                 if len(value.shape) == 0:
@@ -169,7 +169,7 @@ class ReplayBuffer:
                 keys = src_root['data'].keys()
             data = dict()
             for key in keys:
-                arr = src_root['data'][key]
+                arr = src_root['data'][key] # data['img'] = array(25650, 96, 96, 3) data['state'] = array(25650, 5) data['action'] = array(25650, 2)
                 data[key] = arr[:]
 
             root = {
@@ -177,16 +177,16 @@ class ReplayBuffer:
                 'data': data
             }
         else:
-            root = zarr.group(store=store)
+            root = zarr.group(store=store) # 空的
             # copy without recompression
             n_copied, n_skipped, n_bytes_copied = zarr.copy_store(source=src_store, dest=store,
-                source_path='/meta', dest_path='/meta', if_exists=if_exists)
-            data_group = root.create_group('data', overwrite=True)
+                source_path='/meta', dest_path='/meta', if_exists=if_exists) # 将src_store /meta 中的数据 拷贝到 store /meta 中
+            data_group = root.create_group('data', overwrite=True) # 创建data组
             if keys is None:
                 keys = src_root['data'].keys()
-            for key in keys:
-                value = src_root['data'][key]
-                cks = cls._resolve_array_chunks(
+            for key in keys: # 这一部分的代码是为了将 src_root 中 data 下的内容 用 一整块 chunk 进行拷贝
+                value = src_root['data'][key] # low dim的值 'robot_eef_pose': (27672,6) 'action': (27672,2)
+                cks = cls._resolve_array_chunks( 
                     chunks=chunks, key=key, array=value)
                 cpr = cls._resolve_array_compressor(
                     compressors=compressors, key=key, array=value)
@@ -235,7 +235,7 @@ class ReplayBuffer:
         root = zarr.group(store)
         if self.backend == 'zarr':
             # recompression free copy
-            n_copied, n_skipped, n_bytes_copied = zarr.copy_store(
+            n_copied, n_skipped, n_bytes_copied = zarr.copy_store( # 将self.root.store /meta 中的数据 拷贝到 store /meta 中
                 source=self.root.store, dest=store,
                 source_path='/meta', dest_path='/meta', if_exists=if_exists)
         else:
@@ -249,8 +249,8 @@ class ReplayBuffer:
                     chunks=value.shape)
         
         # save data, chunk
-        data_group = root.create_group('data', overwrite=True)
-        for key, value in self.root['data'].items():
+        data_group = root.create_group('data', overwrite=True) # 创建data组
+        for key, value in self.root['data'].items(): # 将self.root.data中的数据拷贝到 data group 中
             cks = self._resolve_array_chunks(
                 chunks=chunks, key=key, array=value)
             cpr = self._resolve_array_compressor(
@@ -258,7 +258,7 @@ class ReplayBuffer:
             if isinstance(value, zarr.Array):
                 if cks == value.chunks and cpr == value.compressor:
                     # copy without recompression
-                    this_path = '/data/' + key
+                    this_path = '/data/' + key # 将self.root.store /data/key 中的数据 拷贝到 store /data/key 中
                     n_copied, n_skipped, n_bytes_copied = zarr.copy_store(
                         source=self.root.store, dest=store,
                         source_path=this_path, dest_path=this_path, if_exists=if_exists)
@@ -315,7 +315,7 @@ class ReplayBuffer:
         return cpr
     
     @classmethod
-    def _resolve_array_chunks(cls,
+    def _resolve_array_chunks(cls, # 返回key对应的chunk大小
             chunks: Union[dict, tuple], key, array):
         cks = None
         if isinstance(chunks, dict):
@@ -439,7 +439,7 @@ class ReplayBuffer:
     def episode_lengths(self):
         ends = self.episode_ends[:]
         ends = np.insert(ends, 0, 0)
-        lengths = np.diff(ends)
+        lengths = np.diff(ends) # 相邻两个元素之差
         return lengths
 
     def add_episode(self, 

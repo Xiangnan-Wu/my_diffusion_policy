@@ -25,19 +25,19 @@ def test():
         )
     env = BlockPushMultimodal()
     obs = env.reset()
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
     env = FlattenObservation(BlockPushMultimodal())
     obs = env.reset()
     action = env.action_space.sample()
     next_obs, reward, done, info = env.step(action)
     print(obs[8:10] + action - next_obs[8:10])
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
     for i in range(3):
         obs, reward, done, info = env.step(env.action_space.sample())
     img = env.render()
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     print("Done!", done)
 
 if __name__ == '__main__':

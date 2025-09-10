@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.append('/home/wxn/Projects/diffusion_policy')
+
 from typing import Dict
 import torch
 import numpy as np
@@ -22,14 +26,14 @@ class PushTImageDataset(BaseImageDataset):
             ):
         
         super().__init__()
-        self.replay_buffer = ReplayBuffer.copy_from_path(
+        self.replay_buffer = ReplayBuffer.copy_from_path( # replay buffer 有meta 和 data 两个key
             zarr_path, keys=['img', 'state', 'action'])
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
             seed=seed)
         train_mask = ~val_mask
-        train_mask = downsample_mask(
+        train_mask = downsample_mask( # 将训练集数量限制在max_train_episodes
             mask=train_mask, 
             max_n=max_train_episodes, 
             seed=seed)
@@ -59,13 +63,13 @@ class PushTImageDataset(BaseImageDataset):
 
     def get_normalizer(self, mode='limits', **kwargs):
         data = {
-            'action': self.replay_buffer['action'],
-            'agent_pos': self.replay_buffer['state'][...,:2]
+            'action': self.replay_buffer['action'], # delta x, y
+            'agent_pos': self.replay_buffer['state'][...,:2] # 当前eef x y
         }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
-        normalizer['image'] = get_image_range_normalizer()
-        return normalizer
+        normalizer['image'] = get_image_range_normalizer() 
+        return normalizer # 最终获得了 action / agnet_pos / image 的 scale offset input_stats(max, min, mean, std) 构成的 SingleFieldLinearNormalizer
 
     def __len__(self) -> int:
         return len(self.sampler)
@@ -92,11 +96,15 @@ class PushTImageDataset(BaseImageDataset):
 
 def test():
     import os
-    zarr_path = os.path.expanduser('~/dev/diffusion_policy/data/pusht/pusht_cchi_v7_replay.zarr')
+    zarr_path = os.path.expanduser('/home/wxn/Projects/diffusion_policy/data/pusht/pusht_cchi_v7_replay.zarr')
     dataset = PushTImageDataset(zarr_path, horizon=16)
 
-    # from matplotlib import pyplot as plt
-    # normalizer = dataset.get_normalizer()
-    # nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
-    # diff = np.diff(nactions, axis=0)
-    # dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
+    from matplotlib import pyplot as plt
+    normalizer = dataset.get_normalizer()
+    nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
+    diff = np.diff(nactions, axis=0) # 两个action之间的差
+    dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
+    
+    
+if __name__ == "__main__":
+    test()

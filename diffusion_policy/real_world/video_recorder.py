@@ -4,46 +4,82 @@ import av
 from diffusion_policy.common.timestamp_accumulator import get_accumulate_timestamp_idxs
 
 def read_video(
-        video_path: str, dt: float,
-        video_start_time: float=0.0, 
-        start_time: float=0.0,
-        img_transform: Optional[Callable[[np.ndarray], np.ndarray]]=None,
-        thread_type: str="AUTO",
-        thread_count: int=0,
-        max_pad_frames: int=10
+        video_path: str,                                              # 视频文件路径
+        dt: float,                                                    # 目标时间间隔(秒)，决定输出帧率
+        video_start_time: float=0.0,                                  # 视频开始的绝对时间戳(秒)
+        start_time: float=0.0,                                        # 数据采样开始时间(秒)
+        img_transform: Optional[Callable[[np.ndarray], np.ndarray]]=None,  # 可选的图像变换函数
+        thread_type: str="AUTO",                                      # 视频解码线程类型
+        thread_count: int=0,                                          # 解码线程数量，0表示自动
+        max_pad_frames: int=10                                        # 视频结束后用最后一帧填充的最大帧数
         ) -> Generator[np.ndarray, None, None]:
-    frame = None
+    """
+    智能视频读取函数，按照指定时间间隔从视频中提取帧
+    
+    该函数的核心功能：
+    1. 时间同步：将视频帧与目标时间网格对齐
+    2. 采样控制：根据dt参数控制输出帧率
+    3. 图像预处理：可选的图像变换（缩放、裁剪等）
+    4. 序列填充：确保输出序列长度一致
+    
+    返回：
+        Generator: 产生处理后的图像帧序列
+    """
+    
+    frame = None  # 用于存储最后一帧，供后续填充使用
+    
+    # 打开视频文件
     with av.open(video_path) as container:
+        # 获取第一个视频流
         stream = container.streams.video[0]
-        stream.thread_type = thread_type
-        stream.thread_count = thread_count
-        next_global_idx = 0
+        
+        # 配置解码参数以优化性能
+        stream.thread_type = thread_type    # 设置线程类型：AUTO, FRAME, SLICE等
+        stream.thread_count = thread_count  # 设置解码线程数，多线程可提升解码速度
+        
+        next_global_idx = 0  # 下一个全局索引，用于时间戳累积计算
+        
+        # 逐帧解码视频
         for frame_idx, frame in enumerate(container.decode(stream)):
-            # The presentation time in seconds for this frame.
-            since_start = frame.time
-            frame_time = video_start_time + since_start
-            local_idxs, global_idxs, next_global_idx \
-                = get_accumulate_timestamp_idxs(
-                # only one timestamp
-                timestamps=[frame_time],
-                start_time=start_time,
-                dt=dt,
-                next_global_idx=next_global_idx
+            # 计算当前帧的绝对时间戳
+            since_start = frame.time                      # 帧相对于视频开始的时间(秒)
+            frame_time = video_start_time + since_start   # 帧的绝对时间戳
+            
+            # 时间戳累积和索引计算
+            # 这是核心的时间同步机制
+            local_idxs, global_idxs, next_global_idx = get_accumulate_timestamp_idxs(
+                timestamps=[frame_time],        # 当前帧的时间戳（列表形式）
+                start_time=start_time,          # 采样开始时间
+                dt=dt,                          # 目标时间间隔
+                next_global_idx=next_global_idx # 全局索引计数器
             )
+            
+            # 如果当前帧需要输出（时间戳匹配采样网格）
             if len(global_idxs) > 0:
-                array = frame.to_ndarray(format='rgb24')
+                # 将视频帧转换为RGB格式的numpy数组
+                array = frame.to_ndarray(format='rgb24')  # 形状: (H, W, 3)
                 img = array
+                
+                # 如果提供了图像变换函数，则应用变换
                 if img_transform is not None:
-                    img = img_transform(array)
+                    img = img_transform(array)  # 例如：缩放、裁剪、颜色转换等
+                
+                # 根据时间同步算法，可能需要重复输出同一帧
+                # 这处理了视频帧率低于目标采样率的情况
                 for global_idx in global_idxs:
                     yield img
-    # repeat last frame max_pad_frames times
-    array = frame.to_ndarray(format='rgb24')
-    img = array
-    if img_transform is not None:
-        img = img_transform(array)
-    for i in range(max_pad_frames):
-        yield img
+    
+    # 视频结束后的填充处理
+    # 用最后一帧填充指定数量的帧，确保序列长度一致
+    if frame is not None:  # 确保至少有一帧被处理
+        array = frame.to_ndarray(format='rgb24')
+        img = array
+        if img_transform is not None:
+            img = img_transform(array)
+        
+        # 重复输出最后一帧
+        for i in range(max_pad_frames):
+            yield img
 
 class VideoRecorder:
     def __init__(self,

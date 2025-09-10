@@ -21,27 +21,27 @@ register_codecs()
 def real_data_to_replay_buffer(
         dataset_path: str, 
         out_store: Optional[zarr.ABSStore]=None, 
-        out_resolutions: Union[None, tuple, Dict[str,tuple]]=None, # (width, height)
-        lowdim_keys: Optional[Sequence[str]]=None,
-        image_keys: Optional[Sequence[str]]=None,
+        out_resolutions: Union[None, tuple, Dict[str,tuple]]=None, # 'camera_1': (width, height)
+        lowdim_keys: Optional[Sequence[str]]=None, # [robot_eef_pose, action]
+        image_keys: Optional[Sequence[str]]=None, # [camera_1, camera_3]
         lowdim_compressor: Optional[numcodecs.abc.Codec]=None,
         image_compressor: Optional[numcodecs.abc.Codec]=None,
         n_decoding_threads: int=multiprocessing.cpu_count(),
         n_encoding_threads: int=multiprocessing.cpu_count(),
         max_inflight_tasks: int=multiprocessing.cpu_count()*5,
         verify_read: bool=True
-        ) -> ReplayBuffer:
+        ) -> ReplayBuffer: # 使用真实数据构建Replay Buffer
     """
-    It is recommended to use before calling this function
-    to avoid CPU oversubscription
+    建议在调用此函数之前使用以下代码
+    以避免CPU过度订阅
     cv2.setNumThreads(1)
     threadpoolctl.threadpool_limits(1)
 
     out_resolution:
-        if None:
-            use video resolution
-        if (width, height) e.g. (1280, 720)
-        if dict:
+        如果为 None:
+            使用视频分辨率
+        如果为 (width, height) 例如 (1280, 720)
+        如果为字典:
             camera_0: (1280, 720)
     image_keys: ['camera_0', 'camera_1']
     """
@@ -56,22 +56,22 @@ def real_data_to_replay_buffer(
 
     # verify input
     input = pathlib.Path(os.path.expanduser(dataset_path))
-    in_zarr_path = input.joinpath('replay_buffer.zarr')
+    in_zarr_path = input.joinpath('replay_buffer.zarr') # 除了视频之外的数据
     in_video_dir = input.joinpath('videos')
     assert in_zarr_path.is_dir()
     assert in_video_dir.is_dir()
-    
-    in_replay_buffer = ReplayBuffer.create_from_path(str(in_zarr_path.absolute()), mode='r')
+    # 构建replay buffer 包含 meta和data data中包含(action, robot_eef_pose, robot_eef_pose_vel, robot_joint, robot_joint_vel, state, timestamp)
+    in_replay_buffer = ReplayBuffer.create_from_path(str(in_zarr_path.absolute()), mode='r') # ReplayBuffer实际上用的是self.root(zarr Group) 
 
     # save lowdim data to single chunk
     chunks_map = dict()
     compressor_map = dict()
     for key, value in in_replay_buffer.data.items():
-        chunks_map[key] = value.shape
+        chunks_map[key] = value.shape # 保存所有数据的形状
         compressor_map[key] = lowdim_compressor
 
     print('Loading lowdim data')
-    out_replay_buffer = ReplayBuffer.copy_from_store(
+    out_replay_buffer = ReplayBuffer.copy_from_store( # 只包含 robot_eef_pose 和 action 的replay buffer
         src_store=in_replay_buffer.root.store,
         store=out_store,
         keys=lowdim_keys,
@@ -95,7 +95,7 @@ def real_data_to_replay_buffer(
     camera_idxs = set() 
     if image_keys is not None:
         n_cameras = len(image_keys)
-        camera_idxs = set(int(x.split('_')[-1]) for x in image_keys)
+        camera_idxs = set(int(x.split('_')[-1]) for x in image_keys) # 保留camera_后的数字作为编号
     else:
         # estimate number of cameras
         episode_video_dir = in_video_dir.joinpath(str(0))
@@ -103,18 +103,18 @@ def real_data_to_replay_buffer(
         camera_idxs = set(int(x.stem) for x in episode_video_paths)
         n_cameras = len(episode_video_paths)
     
-    n_steps = in_replay_buffer.n_steps
-    episode_starts = in_replay_buffer.episode_ends[:] - in_replay_buffer.episode_lengths[:]
-    episode_lengths = in_replay_buffer.episode_lengths
+    n_steps = in_replay_buffer.n_steps # 一共数据集多少步 27672
+    episode_starts = in_replay_buffer.episode_ends[:] - in_replay_buffer.episode_lengths[:] # 每一个样本的开始idx
+    episode_lengths = in_replay_buffer.episode_lengths # 每一个样本的长度
     timestamps = in_replay_buffer['timestamp'][:]
     dt = timestamps[1] - timestamps[0]
-
+    # 一共的图片数量 步骤数量 * 相机个数
     with tqdm(total=n_steps*n_cameras, desc="Loading image data", mininterval=1.0) as pbar:
         # one chunk per thread, therefore no synchronization needed
-        with concurrent.futures.ThreadPoolExecutor(max_workers=n_encoding_threads) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_encoding_threads) as executor: #TODO 记得把线程回到 n_encoding_threads
             futures = set()
             for episode_idx, episode_length in enumerate(episode_lengths):
-                episode_video_dir = in_video_dir.joinpath(str(episode_idx))
+                episode_video_dir = in_video_dir.joinpath(str(episode_idx)) # 一个视频文件夹的地址
                 episode_start = episode_starts[episode_idx]
 
                 episode_video_paths = sorted(episode_video_dir.glob('*.mp4'), key=lambda x: int(x.stem))
@@ -146,13 +146,14 @@ def real_data_to_replay_buffer(
                     out_img_res = in_img_res
                     if isinstance(out_resolutions, dict):
                         if arr_name in out_resolutions:
-                            out_img_res = tuple(out_resolutions[arr_name])
+                            out_img_res = tuple(out_resolutions[arr_name]) # camera_1 camera_3等
                     elif out_resolutions is not None:
                         out_img_res = tuple(out_resolutions)
 
                     # allocate array
                     if arr_name not in out_replay_buffer:
                         ow, oh = out_img_res
+                        # 在out_replay_buffer.data中创建一个新数组
                         _ = out_replay_buffer.data.require_dataset(
                             name=arr_name,
                             shape=(n_steps,oh,ow,3),

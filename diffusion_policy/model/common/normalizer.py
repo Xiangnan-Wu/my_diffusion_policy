@@ -191,7 +191,7 @@ def _fit(data: Union[torch.Tensor, np.ndarray, zarr.Array],
     assert last_n_dims >= 0
     assert output_max > output_min
 
-    # convert data to torch and type
+    # 把数据转化成tensor
     if isinstance(data, zarr.Array):
         data = data[:]
     if isinstance(data, np.ndarray):
@@ -205,7 +205,7 @@ def _fit(data: Union[torch.Tensor, np.ndarray, zarr.Array],
         dim = np.prod(data.shape[-last_n_dims:])
     data = data.reshape(-1,dim)
 
-    # compute input stats min max mean std
+    # 计算输入的 最大值 最小值 平均值 标准差
     input_min, _ = data.min(axis=0)
     input_max, _ = data.max(axis=0)
     input_mean = data.mean(axis=0)
@@ -216,10 +216,10 @@ def _fit(data: Union[torch.Tensor, np.ndarray, zarr.Array],
         if fit_offset:
             # unit scale
             input_range = input_max - input_min
-            ignore_dim = input_range < range_eps
+            ignore_dim = input_range < range_eps # 如果已经满足范围，则不进行缩放
             input_range[ignore_dim] = output_max - output_min
-            scale = (output_max - output_min) / input_range
-            offset = output_min - scale * input_min
+            scale = (output_max - output_min) / input_range # 计算缩放比例
+            offset = output_min - scale * input_min # 计算偏移量
             offset[ignore_dim] = (output_max + output_min) / 2 - input_min[ignore_dim]
             # ignore dims scaled to mean of output max and min
         else:
