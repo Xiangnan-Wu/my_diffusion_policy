@@ -135,27 +135,81 @@ def convert_pickle_to_zarr(input_dir: str, output_file: str) -> bool:
             episode_data = {}
 
             for data_type in data_types:
-                data_path = episode_dir / data_type
-                if not data_path.exists():
+                if data_type == "gripper_states":
                     continue
+                elif data_type == "poses":
+                    data_path = episode_dir / data_type
+                    if not data_path.exists():
+                        continue
+                    gripper_path = episode_dir / "gripper_states"
+                    if not gripper_path.exists():
+                        continue
+                    files = sorted(data_path.glob("*.pkl"), key=lambda x: int(x.stem))
+                    gripper_files = sorted(
+                        gripper_path.glob("*.pkl"), key=lambda x: int(x.stem)
+                    )
 
-                # 加载该类型的所有文件
-                files = sorted(data_path.glob("*.pkl"), key=lambda x: int(x.stem))
+                    # 加载所有pose和gripper数据
+                    all_pose_data = []
+                    for i in range(len(files)):
+                        file_path = files[i]
+                        gripper_file_path = gripper_files[i]
+                        pose_data = safe_load_pickle(str(file_path))
+                        gripper_data = safe_load_pickle(str(gripper_file_path))
+                        full_pose = np.concatenate(
+                            [pose_data, [float(gripper_data)]], axis=0
+                        )
+                        all_pose_data.append(full_pose)
 
-                type_data = []
-                for file_path in files:
-                    data = safe_load_pickle(str(file_path))
-                    if data is not None:
-                        type_data.append(data)
-                    else:
-                        print(f"跳过文件: {file_path}")
+                    if len(all_pose_data) > 1:
+                        # robot_eef_pose: t时刻的pose (除了最后一个时间步)
+                        robot_eef_pose = np.stack(all_pose_data[:-1])
+                        # action: t+1时刻的pose作为t时刻的action (除了第一个时间步)
+                        action = np.stack(all_pose_data[1:])
 
-                if type_data:
-                    # 转换为numpy数组
-                    if isinstance(type_data[0], np.ndarray):
-                        episode_data[data_type] = np.stack(type_data)
-                    else:
-                        episode_data[data_type] = np.array(type_data)
+                        episode_data["robot_eef_pose"] = robot_eef_pose
+                        episode_data["action"] = action
+
+                        # 设置标志，表示需要对齐其他数据
+                        pose_length = len(robot_eef_pose)  # 新的时间步长度
+                else:
+                    data_path = episode_dir / data_type
+                    if not data_path.exists():
+                        continue
+
+                    # 加载该类型的所有文件
+                    files = sorted(data_path.glob("*.pkl"), key=lambda x: int(x.stem))
+
+                    type_data = []
+                    for file_path in files:
+                        data = safe_load_pickle(str(file_path))
+                        if data is not None:
+                            type_data.append(data)
+                        else:
+                            print(f"跳过文件: {file_path}")
+
+                    if type_data:
+                        # 转换为numpy数组
+                        if isinstance(type_data[0], np.ndarray):
+                            episode_data[data_type] = np.stack(type_data)
+                        else:
+                            episode_data[data_type] = np.array(type_data)
+
+            # 如果处理了poses数据，需要对齐其他数据的长度
+            if "robot_eef_pose" in episode_data and "action" in episode_data:
+                target_length = len(episode_data["robot_eef_pose"])
+
+                # 对齐其他数据类型，保持与robot_eef_pose相同的时间步
+                for key in list(episode_data.keys()):
+                    if key not in ["robot_eef_pose", "action"]:
+                        data = episode_data[key]
+                        if len(data) > target_length:
+                            # 截取前target_length个时间步，与robot_eef_pose对齐
+                            episode_data[key] = data[:target_length]
+                        elif len(data) < target_length:
+                            print(
+                                f"警告: {key} 数据长度 ({len(data)}) 小于目标长度 ({target_length})"
+                            )
 
             # 记录episode长度
             if episode_data:
@@ -187,7 +241,7 @@ def convert_pickle_to_zarr(input_dir: str, output_file: str) -> bool:
 
         # 6. 保存元数据到meta组
         episode_lengths_array = np.array(episode_lengths, dtype=np.int64)
-        episode_ends_array = np.cumsum(episode_lengths_array)
+        episode_ends_array = np.cumsum(episode_lengths_array) - np.array([1])
 
         # 保存各种元数据
         meta_group.create_dataset("episode_lengths", data=episode_lengths_array)

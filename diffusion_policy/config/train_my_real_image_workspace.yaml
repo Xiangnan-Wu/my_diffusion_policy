@@ -1,0 +1,36 @@
+defaults:
+  - _self_
+  - task: real_pickplace_image
+
+name: train_my_real_image
+# TODO 后续添加 workspace
+_target_: diffusion_policy.workspace.train_my_real_image_workspace.TrainMyRealImageWorkspace
+
+task_name: ${task.name}
+shape_meta: ${task.shape_meta}
+exp_name: "default"
+
+horizon: &horizon 10
+n_obs_steps: 1
+n_action_steps: 1
+n_latency_steps: 1
+dataset_obs_steps: *horizon
+past_action_visible: False
+keypoint_visible_rate: 1.0
+
+# 后续加入 policy
+
+
+# 后续加入 dataloader
+
+# 后续加入 val_dataloader
+
+# 后续加入 training
+
+# 后续加入 logging
+
+# 后续加入 checkpoint
+
+# 后续加入 multi_run
+
+# 后续加入 hydra
