@@ -211,10 +211,10 @@ def _get_replay_buffer(dataset_path, shape_meta, store):
             lowdim_keys.append(key)
             lowdim_shapes[key] = tuple(shape)
             if "pose" in key:
-                assert tuple(shape) in [(7,)]
+                assert tuple(shape) in [(8,)]
 
     action_shape = tuple(shape_meta["action"]["shape"])
-    assert action_shape in [(7,)]
+    assert action_shape in [(8,)]
 
     # load data
     cv2.setNumThreads(1)
@@ -227,12 +227,12 @@ def _get_replay_buffer(dataset_path, shape_meta, store):
             image_keys=rgb_keys,
         )
 
-    if action_shape == (7,):
+    if action_shape == (8,):
         zarr_arr = replay_buffer["action"]
         zarr_resize_index_last_dim(zarr_arr, idxs=[0, 1, 2, 3, 4, 5, 6, 7])
 
     for key, shape in lowdim_shapes.items():
-        if "pose" in key and shape == (7,):
+        if "pose" in key and shape == (8,):
             zarr_arr = replay_buffer[key]
             zarr_resize_index_last_dim(zarr_arr, idxs=[0, 1, 2, 3, 4, 5, 6, 7])
 

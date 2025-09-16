@@ -8,13 +8,13 @@ shape_meta: &shape_meta
       shape: ${task.image_shape}
       type: rgb
     robot_eef_pose:
-      shape: [7]
+      shape: [8]
       type: low_dim
   action:
-    shape: [7]
+    shape: [8]
 
-# env_runner:
-#   _target_: diffusion_policy.env_runner.real_pusht_image_runner.RealPushTImageRunner
+env_runner:
+  _target_: diffusion_policy.env_runner.real_pusht_image_runner.RealPushTImageRunner
 
 dataset:
   _target_: diffusion_policy.dataset.real_pick_and_place_image_dataset.RealPickAndPlaceImageDataset
