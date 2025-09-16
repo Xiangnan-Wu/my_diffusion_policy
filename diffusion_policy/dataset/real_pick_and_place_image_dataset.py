@@ -29,6 +29,7 @@ from diffusion_policy.model.common.normalizer import (
     SingleFieldLinearNormalizer,
 )
 from diffusion_policy.real_world.real_data_conversion import real_data_to_replay_buffer
+from diffusion_policy.real_world.my_real_data_conversion import my_real_data_to_replay_buffer
 
 logger = Logger(__name__)
 
@@ -218,7 +219,7 @@ def _get_replay_buffer(dataset_path, shape_meta, store):
     # load data
     cv2.setNumThreads(1)
     with threadpool_limits(1):
-        replay_buffer = real_data_to_replay_buffer(
+        replay_buffer = my_real_data_to_replay_buffer(
             dataset_path=dataset_path,
             out_store=store,
             out_resolutions=out_resolutions,
@@ -228,12 +229,12 @@ def _get_replay_buffer(dataset_path, shape_meta, store):
 
     if action_shape == (7,):
         zarr_arr = replay_buffer["action"]
-        zarr_resize_index_last_dim(zarr_arr, idxs=[0, 1, 2, 3, 4, 5, 6])
+        zarr_resize_index_last_dim(zarr_arr, idxs=[0, 1, 2, 3, 4, 5, 6, 7])
 
     for key, shape in lowdim_shapes.items():
         if "pose" in key and shape == (7,):
             zarr_arr = replay_buffer[key]
-            zarr_resize_index_last_dim(zarr_arr, idxs=[0, 1, 2, 3, 4, 5, 6])
+            zarr_resize_index_last_dim(zarr_arr, idxs=[0, 1, 2, 3, 4, 5, 6, 7])
 
     return replay_buffer
 

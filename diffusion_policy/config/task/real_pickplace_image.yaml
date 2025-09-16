@@ -1,10 +1,10 @@
 name: real_image
 image_shape: [3, 240, 320 ] # 最后经过处理输出的图像shape
-dataset_path: /home/wxn/Projects/diffusion_policy/data/continuous_data_dev.zarr
+dataset_path: /home/wxn/Projects/diffusion_policy/data/my_data
 
 shape_meta: &shape_meta
   obs:
-    camera: 
+    camera_0: 
       shape: ${task.image_shape}
       type: rgb
     robot_eef_pose:

@@ -241,7 +241,7 @@ def convert_pickle_to_zarr(input_dir: str, output_file: str) -> bool:
 
         # 6. 保存元数据到meta组
         episode_lengths_array = np.array(episode_lengths, dtype=np.int64)
-        episode_ends_array = np.cumsum(episode_lengths_array) - np.array([1])
+        episode_ends_array = np.cumsum(episode_lengths_array)
 
         # 保存各种元数据
         meta_group.create_dataset("episode_lengths", data=episode_lengths_array)

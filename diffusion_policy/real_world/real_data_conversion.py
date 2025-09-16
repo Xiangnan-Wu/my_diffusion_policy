@@ -54,7 +54,7 @@ def real_data_to_replay_buffer(
     if image_compressor is None:
         image_compressor = Jpeg2k(level=50)
 
-    # verify input
+    # 验证输入部分
     input = pathlib.Path(os.path.expanduser(dataset_path))
     in_zarr_path = input.joinpath('replay_buffer.zarr') # 除了视频之外的数据
     in_video_dir = input.joinpath('videos')
