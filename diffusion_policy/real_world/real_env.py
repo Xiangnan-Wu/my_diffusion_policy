@@ -5,7 +5,7 @@ import time
 import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
-from diffusion_policy.real_world.rtde_interpolation_controller import RTDEInterpolationController
+# from diffusion_policy.real_world.rtde_interpolation_controller import RTDEInterpolationController
 from diffusion_policy.real_world.multi_realsense import MultiRealsense, SingleRealsense
 from diffusion_policy.real_world.video_recorder import VideoRecorder
 from diffusion_policy.common.timestamp_accumulator import (

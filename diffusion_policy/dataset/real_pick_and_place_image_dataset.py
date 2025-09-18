@@ -28,8 +28,9 @@ from diffusion_policy.model.common.normalizer import (
     LinearNormalizer,
     SingleFieldLinearNormalizer,
 )
-from diffusion_policy.real_world.real_data_conversion import real_data_to_replay_buffer
-from diffusion_policy.real_world.my_real_data_conversion import my_real_data_to_replay_buffer
+from diffusion_policy.real_world.my_real_data_conversion import (
+    my_real_data_to_replay_buffer,
+)
 
 logger = Logger(__name__)
 
@@ -211,10 +212,10 @@ def _get_replay_buffer(dataset_path, shape_meta, store):
             lowdim_keys.append(key)
             lowdim_shapes[key] = tuple(shape)
             if "pose" in key:
-                assert tuple(shape) in [(8,)]
+                assert tuple(shape) in [(7,), (8,)]  # 支持7维和8维
 
     action_shape = tuple(shape_meta["action"]["shape"])
-    assert action_shape in [(8,)]
+    assert action_shape in [(7,), (8,)]  # 支持7维和8维action
 
     # load data
     cv2.setNumThreads(1)
