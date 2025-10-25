@@ -289,7 +289,7 @@ def main(input, output, robot_ip, match_dataset, match_episode,
 
                         # get obs
                         print('get_obs')
-                        obs = env.get_obs()
+                        obs = env.get_obs() # 获取环境观测
                         obs_timestamps = obs['timestamp']
                         print(f'Obs latency {time.time() - obs_timestamps[-1]}')
 
@@ -297,7 +297,7 @@ def main(input, output, robot_ip, match_dataset, match_episode,
                         with torch.no_grad():
                             s = time.time()
                             obs_dict_np = get_real_obs_dict(
-                                env_obs=obs, shape_meta=cfg.task.shape_meta)
+                                env_obs=obs, shape_meta=cfg.task.shape_meta) # 将环境观测转换为obs字典
                             obs_dict = dict_apply(obs_dict_np, 
                                 lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
                             result = policy.predict_action(obs_dict)
